@@ -1,15 +1,23 @@
 import { StyleSheet, View } from 'react-native';
-import { useContext, useLayoutEffect } from 'react';
+import { deleteExpense, storeExpense, updateExpense } from '../util/http';
+import { useContext, useLayoutEffect, useState } from 'react';
 
+import ErrorOverlay from '../components/UI/ErrorOverlay';
 import ExpenseForm from '../components/ManageExpense/ExpenseForm';
 import { ExpensesContext } from '../store/expenses-context';
 import { GlobalStyles } from '../constants/styles';
 import IconButton from '../components/UI/IconButton';
+import LoadingOverlay from '../components/UI/LoadingOverlay';
 
 function ManageExpenses({ route, navigation }) {
+  const [isSendingRequest, setIsSendingRequest] = useState(false);
+  const [error, setError] = useState();
+
   const expensesCtx = useContext(ExpensesContext);
+
   const expenseId = route.params?.expenseId;
   const isEditing = !!expenseId; // true if expenseId exists
+
   const selectedExpense = expensesCtx.expenses.find(
     (expense) => expense.id === expenseId
   );
@@ -20,21 +28,43 @@ function ManageExpenses({ route, navigation }) {
     });
   }, [navigation, isEditing]);
 
-  function deleteExpenseHandler() {
-    expensesCtx.deleteExpense(expenseId);
-    navigation.goBack();
+  async function deleteExpenseHandler() {
+    setIsSendingRequest(true);
+
+    try {
+      await deleteExpense(expenseId);
+      expensesCtx.deleteExpense(expenseId);
+      navigation.goBack();
+    } catch (error) {
+      setError('Could not delete expense.');
+      setIsSendingRequest(false);
+    }
   }
+
   function cancelHandler() {
     navigation.goBack();
   }
-  function confirmHandler(expenseData) {
-    if (isEditing) {
-      expensesCtx.updateExpense(expenseId, expenseData);
-    } else {
-      expensesCtx.addExpense(expenseData);
+
+  async function confirmHandler(expenseData) {
+    setIsSendingRequest(true);
+
+    try {
+      if (isEditing) {
+        expensesCtx.updateExpense(expenseId, expenseData);
+        await updateExpense(expenseId, expenseData);
+      } else {
+        const expenseId = await storeExpense(expenseData);
+        expensesCtx.addExpense({ ...expenseData, id: expenseId }); // store firebase generated id into context
+      }
+      navigation.goBack();
+    } catch (error) {
+      setError('Could not add expense.');
+      setIsSendingRequest(false);
     }
-    navigation.goBack();
   }
+
+  if (isSendingRequest) return <LoadingOverlay />;
+  if (error && !isSendingRequest) return <ErrorOverlay message={error} />;
 
   return (
     <View style={styles.container}>
