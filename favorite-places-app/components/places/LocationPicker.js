@@ -4,6 +4,7 @@ import {
   getCurrentPositionAsync,
   useForegroundPermissions,
 } from 'expo-location';
+import { getMapPreview, translateAddress } from '../../util/location';
 import { useEffect, useState } from 'react';
 import {
   useIsFocused,
@@ -13,9 +14,8 @@ import {
 
 import { Colors } from '../../constants/colors';
 import OutlinedButton from '../ui/OutlinedButton';
-import { getMapPreview } from '../../util/location';
 
-function LocationPicker() {
+function LocationPicker({ onPickLocation }) {
   const [location, setLocation] = useState();
   const [locationPermissionInformation, requestPermission] =
     useForegroundPermissions();
@@ -33,6 +33,17 @@ function LocationPicker() {
       setLocation(mapPickedLocation);
     }
   }, [route, isFocused]);
+
+  useEffect(() => {
+    async function handleLocation() {
+      if (location) {
+        const address = await translateAddress(location.lat, location.lng);
+        onPickLocation({ ...location, address: address });
+      }
+    }
+
+    handleLocation();
+  }, [location, onPickLocation]);
 
   async function verifyPermissions() {
     if (
